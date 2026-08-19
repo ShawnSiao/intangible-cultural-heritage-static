@@ -31,8 +31,6 @@ export default function App() {
         </Link>
         <nav className="site-nav" aria-label="主导航">
           <Link to="/">全国非遗</Link>
-          <Link to="/places/320100">南京非遗</Link>
-          <Link to="/venues">体验地点</Link>
         </nav>
       </header>
       <main>

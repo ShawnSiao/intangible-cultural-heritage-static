@@ -6,7 +6,6 @@ export default function HomePage() {
   const model = useCatalog();
   const summary = model.getMapSummary();
   const unmapped = model.getUnmappedHeritageSummary();
-  const nanjing = model.getPlace("320100");
   const { stats } = model.catalog;
   const mappedNationalProjects = stats.nationalProjectCount - unmapped.nationalProjectCount;
   return (
@@ -31,18 +30,6 @@ export default function HomePage() {
           <Link to="/heritage"><span>未按现行行政区归类</span><strong>{unmapped.nationalProjectCount} 项</strong><small>查看项目 →</small></Link>
           <p>后一组保留中央单位、行业机构、兵团和历史地区名称等申报文字，不推测性分配到省市区。</p>
         </div>}
-      </section>
-      <section className="section city-feature">
-        <div className="section-heading">
-          <h2>南京非遗</h2>
-          <p>南京已收录 {nanjing?.projectCount ?? 0} 个国家级、省级和市级非遗项目，涵盖 {nanjing?.categoryCount ?? 0} 个门类，并整理了 {stats.venueCount} 个可进一步了解的场馆、基地、工坊与传习空间。</p>
-        </div>
-        <div className="city-feature-content">
-          <div className="city-projects" aria-label="南京代表性非遗项目">
-            {nanjing?.representativeProjects.map((project) => <Link to={`/heritage/${project.id}`} key={project.id}><span>{project.category}</span><strong>{project.name}</strong></Link>)}
-          </div>
-          <Link className="primary-button" to="/places/320100">浏览南京非遗</Link>
-        </div>
       </section>
     </div>
   );
