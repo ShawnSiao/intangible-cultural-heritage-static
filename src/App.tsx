@@ -4,6 +4,7 @@ import HeritagePage from "./pages/HeritagePage";
 import HomePage from "./pages/HomePage";
 import NotFoundPage from "./pages/NotFoundPage";
 import PlacePage from "./pages/PlacePage";
+import UnmappedHeritagePage from "./pages/UnmappedHeritagePage";
 import VenuePage from "./pages/VenuePage";
 import VenuesPage from "./pages/VenuesPage";
 
@@ -38,6 +39,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/places/:adcode" element={<PlacePage />} />
+          <Route path="/heritage" element={<UnmappedHeritagePage />} />
           <Route path="/heritage/:id" element={<HeritagePage />} />
           <Route path="/venues" element={<VenuesPage />} />
           <Route path="/venues/:id" element={<VenuePage />} />

@@ -1,31 +1,8 @@
 import type { PlaceChildSummary } from "../types";
+import { layoutMapLabels } from "../lib/map-label-layout";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 declare global { interface Window { AMap?: any; _AMapSecurityConfig?: { securityJsCode: string } } }
-
-const MARKER_OFFSETS: Array<[number, number]> = [[0, 0], [136, -74], [-136, -74], [136, 74], [-136, 74], [0, -132], [0, 132], [210, 0], [-210, 0]];
-const MANUAL_MARKER_OFFSETS: Record<string, [number, number]> = {
-  "320102": [0, -232],
-  "320104": [148, 18],
-  "320105": [-158, 94],
-  "320106": [-150, -82],
-  "320111": [-220, 8],
-  "320113": [160, -86],
-  "320114": [44, 206],
-  "320115": [172, 92],
-};
-
-function collisionOffset(regions: PlaceChildSummary[], index: number): [number, number] {
-  const current = regions[index];
-  if (current.longitude == null || current.latitude == null) return [0, 0];
-  if (MANUAL_MARKER_OFFSETS[current.adcode]) return MANUAL_MARKER_OFFSETS[current.adcode];
-  const nearbyBefore = regions.slice(0, index).filter((candidate) =>
-    candidate.longitude != null
-    && candidate.latitude != null
-    && Math.abs(candidate.longitude - current.longitude!) < 0.09
-    && Math.abs(candidate.latitude - current.latitude!) < 0.055).length;
-  return MARKER_OFFSETS[Math.min(nearbyBefore, MARKER_OFFSETS.length - 1)];
-}
 
 type AmapSurfaceProps = {
   boundaryAdcode?: string;
@@ -65,6 +42,7 @@ export default function AmapSurface({ boundaryAdcode, boundaryLevel, center, lab
     window._AMapSecurityConfig = { securityJsCode: securityCode };
     let map: any;
     let active = true;
+    let layoutFrame = 0;
     const initialize = () => {
       if (!active || !window.AMap || !container.current) return;
       map = new window.AMap.Map(container.current, {
@@ -74,13 +52,9 @@ export default function AmapSurface({ boundaryAdcode, boundaryLevel, center, lab
         mapStyle: "amap://styles/whitesmoke",
         showLabel: true,
       });
-      const markers = regionCenters.map((region, index) => {
+      const markerRecords = regionCenters.map((region) => {
         const content = document.createElement("a");
-        const [rawOffsetX, rawOffsetY] = collisionOffset(regionCenters, index);
-        const offsetScale = window.innerWidth <= 520 ? 0.55 : 1;
-        const offsetX = Math.round(rawOffsetX * offsetScale);
-        const offsetY = Math.round(rawOffsetY * offsetScale);
-        content.className = `amap-region-marker${region.projectCount === 0 ? " empty" : ""}${offsetX || offsetY ? " offset" : ""}`;
+        content.className = `amap-region-marker${region.projectCount === 0 ? " empty" : ""}`;
         content.href = `#/places/${region.adcode}`;
         const projectNames = region.representativeProjects.map((project) => project.name).join("、");
         content.title = projectNames ? `${region.name}：${projectNames}` : `${region.name}：当前暂无项目名称`;
@@ -90,20 +64,66 @@ export default function AmapSurface({ boundaryAdcode, boundaryLevel, center, lab
         const count = document.createElement("span");
         count.textContent = `${region.projectCount} 项`;
         content.append(heading, count);
-        if (offsetX || offsetY) {
-          content.style.setProperty("--leader-length", `${Math.hypot(offsetX, offsetY).toFixed(1)}px`);
-          content.style.setProperty("--leader-angle", `${Math.atan2(-offsetY, -offsetX) * 180 / Math.PI}deg`);
-        }
-        return new window.AMap.Marker({
+        const marker = new window.AMap.Marker({
           map,
           position: [region.longitude, region.latitude],
           title: `${region.name} · ${region.projectCount} 项`,
           content,
           anchor: "bottom-center",
-          offset: new window.AMap.Pixel(offsetX, offsetY),
+          offset: new window.AMap.Pixel(0, 0),
           zIndex: 120 + Math.min(region.projectCount, 99),
         });
+        return { content, marker, region };
       });
+      const markers = markerRecords.map((record) => record.marker);
+      const applyMarkerLayout = () => {
+        if (!active || !map || !container.current || !markerRecords.length) return;
+        window.cancelAnimationFrame(layoutFrame);
+        layoutFrame = window.requestAnimationFrame(() => {
+          if (!active || !map || !container.current) return;
+          const size = map.getSize();
+          const mobile = size.width <= 520;
+          const layout = layoutMapLabels(markerRecords.map(({ content, region }) => {
+            const pixel = map.lngLatToContainer(new window.AMap.LngLat(region.longitude, region.latitude));
+            return {
+              id: region.adcode,
+              anchorX: Number(pixel.x),
+              anchorY: Number(pixel.y),
+              width: content.offsetWidth || (mobile ? 92 : 112),
+              height: content.offsetHeight || 32,
+              priority: region.projectCount,
+            };
+          }), {
+            viewportWidth: Number(size.width),
+            viewportHeight: Number(size.height),
+            padding: mobile ? 10 : 16,
+            bottomPadding: mobile ? 66 : 58,
+            gap: mobile ? 6 : 9,
+          });
+          const layoutByAdcode = new Map(layout.map((item) => [item.id, item]));
+          for (const { content, marker, region } of markerRecords) {
+            const position = layoutByAdcode.get(region.adcode);
+            if (!position) continue;
+            const { offsetX, offsetY } = position;
+            marker.setOffset(new window.AMap.Pixel(offsetX, offsetY));
+            content.dataset.layout = "ready";
+            const displaced = Math.hypot(offsetX, offsetY) > 4;
+            content.classList.toggle("offset", displaced);
+            if (displaced) {
+              content.style.setProperty("--leader-length", `${Math.hypot(offsetX, offsetY).toFixed(1)}px`);
+              content.style.setProperty("--leader-angle", `${Math.atan2(-offsetY, -offsetX) * 180 / Math.PI}deg`);
+            } else {
+              content.style.removeProperty("--leader-length");
+              content.style.removeProperty("--leader-angle");
+            }
+          }
+        });
+      };
+      map.on("complete", applyMarkerLayout);
+      map.on("moveend", applyMarkerLayout);
+      map.on("zoomend", applyMarkerLayout);
+      map.on("resize", applyMarkerLayout);
+      applyMarkerLayout();
       if (showCenterMarker && mapCenter) markers.push(new window.AMap.Marker({ map, position: mapCenter, title: label, anchor: "bottom-center", zIndex: 220 }));
       if (boundaryAdcode && boundaryLevel) {
         window.AMap.plugin("AMap.DistrictSearch", () => {
@@ -125,6 +145,7 @@ export default function AmapSurface({ boundaryAdcode, boundaryLevel, center, lab
             if (polygons.length) {
               const boundaryPadding = window.innerWidth <= 520 ? [76, 76, 76, 76] : [42, 42, 42, 42];
               map.setFitView(polygons, false, boundaryPadding, boundaryLevel === "district" ? 12 : 10.5);
+              applyMarkerLayout();
             }
           });
         });
@@ -145,7 +166,7 @@ export default function AmapSurface({ boundaryAdcode, boundaryLevel, center, lab
       script.addEventListener("error", () => setStatus("error"), { once: true });
       document.head.appendChild(script);
     }
-    return () => { active = false; map?.destroy?.(); };
+    return () => { active = false; window.cancelAnimationFrame(layoutFrame); map?.destroy?.(); };
   }, [boundaryAdcode, boundaryLevel, key, label, mapCenter, regionCenters, regionView, securityCode, showCenterMarker]);
 
   const live = Boolean(key && securityCode && mapCenter);

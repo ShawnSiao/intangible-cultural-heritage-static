@@ -9,6 +9,7 @@ const categories = ["民间文学", "传统音乐", "传统舞蹈", "传统戏�
 
 export default function PlacePage() {
   const { adcode = "" } = useParams();
+  const [params] = useSearchParams();
   const model = useCatalog();
   const place = model.getPlace(adcode);
   if (adcode === "100000") return <Navigate to="/" replace />;
@@ -25,6 +26,15 @@ export default function PlacePage() {
     : "可查看非遗项目、代表性传承人和体验地点";
   const childrenWithProjects = place.children.filter((child) => child.projectCount > 0);
   const childrenWithoutProjects = place.children.filter((child) => child.projectCount === 0);
+  const childProjectCount = place.children.reduce((sum, child) => sum + child.projectCount, 0);
+  const directOnly = params.get("scope") === "direct";
+  const projectCategories = directOnly ? place.directCategories : place.categories;
+  const projectScopeCount = directOnly ? place.directProjectCount : place.projectCount;
+  const childProjectCountLabel = childLevels.length === 1 && childLevels[0] === "district"
+    ? "区县标签合计"
+    : childLevels.length === 1 && childLevels[0] === "city"
+      ? "地级行政区合计"
+      : "下级行政区合计";
   const coordinate = place.longitude != null && place.latitude != null
     ? [place.longitude, place.latitude] as [number, number]
     : null;
@@ -48,6 +58,14 @@ export default function PlacePage() {
       <section className="section region-map-section" id="region-map" aria-labelledby="drilldown-heading">
         <div className="section-heading compact"><h2 id="drilldown-heading">{place.children.length ? `查看${childRegionLabel}非遗` : `${place.name}地图`}</h2><p>{place.children.length ? `共 ${place.children.length} 个地区。地图优先标注已有非遗记录的地区；完整行政区列表见本页下方。` : "当前没有更细一级的地区资料，地图展示该行政区所在位置。"}</p></div>
         <AmapSurface boundaryAdcode={adcode} boundaryLevel={place.level} center={coordinate} label={place.name} regions={childrenWithProjects} compact={!place.children.length} fallbackDescription="地区与项目列表仍可浏览。行政区中心只用于地图定位，不代表非遗项目的精确位置。" />
+        {place.children.length > 0 && place.directProjectCount > 0 && <div className="region-count-reconciliation" role="note" aria-label={`${place.name}项目统计口径`}>
+          <div><span>项目总数</span><strong>{place.projectCount} 项</strong></div>
+          <b aria-hidden="true">=</b>
+          <div><span>{childProjectCountLabel}</span><strong>{childProjectCount} 项</strong></div>
+          <b aria-hidden="true">+</b>
+          <Link to={`/places/${adcode}?scope=direct#projects`}><span>申报地区仅到{place.name}</span><strong>{place.directProjectCount} 项</strong><small>查看项目 →</small></Link>
+          <p>这部分项目归属{place.name}，但申报地区未细分到{childRegionLabel.replace("各", "")}；地图不将其推测性分配给下级行政区。</p>
+        </div>}
         {!place.children.length && <div className="coverage-limit"><strong>当前收录到{placeLevelLabel(place.level)}层级</strong><span>尚未收录街道、乡镇或村级归属；行政区中心不作为项目位置。</span></div>}
       </section>
       <section className="region-overview" aria-labelledby="region-overview-heading">
@@ -63,7 +81,7 @@ export default function PlacePage() {
           <div><h3>代表性非遗项目</h3><div className="overview-projects">{place.representativeProjects.length ? place.representativeProjects.map((project) => <Link to={`/heritage/${project.id}`} key={project.id}><span>{project.name}</span><small>{project.level}</small></Link>) : <p>当前暂无可展示项目名称。</p>}</div></div>
         </div>
       </section>
-      <ProjectBrowser adcode={adcode} items={model.listHeritage(adcode)} categoryCounts={place.categories} />
+      <ProjectBrowser adcode={adcode} placeName={place.name} items={model.listHeritage(adcode, directOnly ? "direct" : "descendants")} categoryCounts={projectCategories} directOnly={directOnly} projectCount={place.projectCount} scopeCount={projectScopeCount} />
       {place.children.length > 0 && <section className="section region-list-section" id="region-list" aria-labelledby="region-list-heading">
         <div className="section-heading compact"><h2 id="region-list-heading">地区列表</h2><p>优先展示已有非遗记录的地区；暂无项目记录的地区收纳在列表末尾。</p></div>
         {childrenWithProjects.length > 0 && <div className="region-grid" aria-label={`${place.name}有非遗记录的下级行政区`}>
@@ -82,7 +100,7 @@ export default function PlacePage() {
   );
 }
 
-function ProjectBrowser({ adcode, items, categoryCounts }: { adcode: string; items: HeritageRecord[]; categoryCounts: Array<{ category: string; count: number }> }) {
+function ProjectBrowser({ adcode, placeName, items, categoryCounts, directOnly, projectCount, scopeCount }: { adcode: string; placeName: string; items: HeritageRecord[]; categoryCounts: Array<{ category: string; count: number }>; directOnly: boolean; projectCount: number; scopeCount: number }) {
   const [params, setParams] = useSearchParams();
   const query = params.get("q")?.trim() ?? "";
   const category = params.get("category")?.trim() ?? "";
@@ -103,6 +121,7 @@ function ProjectBrowser({ adcode, items, categoryCounts }: { adcode: string; ite
 
   function update(next: { q?: string; category?: string; page?: number }) {
     const value = new URLSearchParams();
+    if (directOnly) value.set("scope", "direct");
     if (next.q) value.set("q", next.q);
     if (next.category) value.set("category", next.category);
     if ((next.page ?? 1) > 1) value.set("page", String(next.page));
@@ -112,9 +131,10 @@ function ProjectBrowser({ adcode, items, categoryCounts }: { adcode: string; ite
 
   return (
     <section className="section project-browser" id="projects" aria-labelledby="project-heading">
-      <div className="section-heading compact"><h2 id="project-heading">非遗项目</h2><p>按名称、申报地区或门类查找。筛选和翻页均在浏览器内完成。</p></div>
+      <div className="section-heading compact"><h2 id="project-heading">{directOnly ? `申报地区仅到${placeName}的项目` : "非遗项目"}</h2><p>{directOnly ? `当前只显示归属${placeName}、尚未细分到下级行政区的项目。` : "按名称、申报地区或门类查找。筛选和翻页均在浏览器内完成。"}</p></div>
+      {directOnly && <div className="project-scope-note" role="status"><span>当前范围：{placeName}本级归属，共 {scopeCount} 项</span><Link to={`/places/${adcode}#projects`}>查看{placeName}全部 {projectCount} 项</Link></div>}
       <nav className="filter-pills category-filters" id="categories" aria-label="非遗门类快捷筛选">
-        <button className={!category ? "active" : ""} onClick={() => update({ q: query })}>全部门类 <span>{items.length}</span></button>
+        <button className={!category ? "active" : ""} onClick={() => update({ q: query })}>全部门类 <span>{scopeCount}</span></button>
         {categories.map((name) => <button className={category === name ? "active" : ""} onClick={() => update({ q: query, category: name })} key={name} aria-current={category === name ? "page" : undefined}>{name} <span>{categoryCounts.find((entry) => entry.category === name)?.count ?? 0}</span></button>)}
       </nav>
       <div className="content-grid">

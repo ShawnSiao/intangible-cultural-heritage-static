@@ -5,8 +5,10 @@ import { useCatalog } from "../lib/catalog-context";
 export default function HomePage() {
   const model = useCatalog();
   const summary = model.getMapSummary();
+  const unmapped = model.getUnmappedHeritageSummary();
   const nanjing = model.getPlace("320100");
   const { stats } = model.catalog;
+  const mappedNationalProjects = stats.nationalProjectCount - unmapped.nationalProjectCount;
   return (
     <div className="page-shell">
       <HomeExplorer provinces={summary} nationalProjectCount={stats.nationalProjectCount} categoryCount={stats.categoryCount} />
@@ -21,6 +23,14 @@ export default function HomePage() {
           <div className="stat"><strong>{stats.nationalInheritorCount}</strong><span>国家级代表性传承人</span></div>
           <div className="stat"><strong>{stats.categoryCount}</strong><span>非遗门类</span></div>
         </div>
+        {unmapped.nationalProjectCount > 0 && <div className="region-count-reconciliation national-count-reconciliation" role="note" aria-label="全国国家级项目统计口径">
+          <div><span>国家级项目总数</span><strong>{stats.nationalProjectCount} 项</strong></div>
+          <b aria-hidden="true">=</b>
+          <div><span>省市区地图已归类</span><strong>{mappedNationalProjects} 项</strong></div>
+          <b aria-hidden="true">+</b>
+          <Link to="/heritage"><span>未按现行行政区归类</span><strong>{unmapped.nationalProjectCount} 项</strong><small>查看项目 →</small></Link>
+          <p>后一组保留中央单位、行业机构、兵团和历史地区名称等申报文字，不推测性分配到省市区。</p>
+        </div>}
       </section>
       <section className="section city-feature">
         <div className="section-heading">

@@ -106,6 +106,8 @@ export type PlaceChildSummary = PlaceRecord & {
 export type PlaceView = PlaceRecord & {
   parent: PlaceRecord | null;
   categories: Array<{ category: string; count: number }>;
+  directCategories: Array<{ category: string; count: number }>;
+  directProjectCount: number;
   projectCount: number;
   categoryCount: number;
   dominantCategory: string | null;

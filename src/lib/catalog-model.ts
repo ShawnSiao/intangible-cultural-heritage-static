@@ -42,6 +42,7 @@ export class CatalogModel {
   readonly heritageById: Map<string, HeritageRecord>;
   readonly venueById: Map<string, VenueRecord>;
   private readonly childrenByAdcode = new Map<string, PlaceRecord[]>();
+  private readonly directHeritageByAdcode = new Map<string, HeritageRecord[]>();
   private readonly heritageByAdcode = new Map<string, HeritageRecord[]>();
   private readonly venuesByAdcode = new Map<string, VenueRecord[]>();
 
@@ -60,6 +61,9 @@ export class CatalogModel {
 
     for (const item of catalog.heritage) {
       if (!item.adcode) continue;
+      const directItems = this.directHeritageByAdcode.get(item.adcode) ?? [];
+      directItems.push(item);
+      this.directHeritageByAdcode.set(item.adcode, directItems);
       this.addToAncestors(this.heritageByAdcode, item.adcode, item);
     }
 
@@ -86,8 +90,21 @@ export class CatalogModel {
     return this.venueById.get(id) ?? null;
   }
 
-  listHeritage(adcode: string) {
-    return this.heritageByAdcode.get(adcode) ?? [];
+  listHeritage(adcode: string, scope: "descendants" | "direct" = "descendants") {
+    return (scope === "direct" ? this.directHeritageByAdcode : this.heritageByAdcode).get(adcode) ?? [];
+  }
+
+  listUnmappedHeritage() {
+    return this.catalog.heritage.filter((item) => !item.adcode);
+  }
+
+  getUnmappedHeritageSummary() {
+    const items = this.listUnmappedHeritage();
+    return {
+      projectCount: items.length,
+      nationalProjectCount: items.filter((item) => item.level === "国家级").length,
+      categories: categorySummary(items),
+    };
   }
 
   listVenues(adcode: string) {
@@ -98,7 +115,9 @@ export class CatalogModel {
     const place = this.placeByAdcode.get(adcode);
     if (!place) return null;
     const items = this.listHeritage(adcode);
+    const directItems = this.listHeritage(adcode, "direct");
     const categories = categorySummary(items);
+    const directCategories = categorySummary(directItems);
     const children = (this.childrenByAdcode.get(adcode) ?? [])
       .map((child) => this.childSummary(child))
       .sort((a, b) => a.adcode.localeCompare(b.adcode));
@@ -109,6 +128,8 @@ export class CatalogModel {
       ...place,
       parent: place.parentAdcode ? this.placeByAdcode.get(place.parentAdcode) ?? null : null,
       categories,
+      directCategories,
+      directProjectCount: directItems.length,
       projectCount: items.length,
       categoryCount: categories.length,
       dominantCategory: categories[0]?.category ?? null,
