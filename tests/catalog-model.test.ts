@@ -5,9 +5,10 @@ import type { PublicCatalog } from "../src/types";
 const catalog: PublicCatalog = {
   version: 1,
   publishedAt: "2026-08-18",
-  stats: { placeCount: 3, heritageCount: 4, nationalProjectCount: 2, nationalInheritorCount: 1, categoryCount: 3, provinceCount: 1, venueCount: 1 },
+  stats: { placeCount: 4, heritageCount: 4, nationalProjectCount: 2, nationalInheritorCount: 1, categoryCount: 3, provinceCount: 2, venueCount: 2 },
   places: [
     { adcode: "100000", name: "中华人民共和国", level: "country", parentAdcode: null, longitude: null, latitude: null, coordinatePrecision: "administrative_centroid", coverageLevel: "national_only" },
+    { adcode: "110000", name: "北京市", level: "province", parentAdcode: "100000", longitude: 116.4, latitude: 39.9, coordinatePrecision: "administrative_centroid", coverageLevel: "national_only" },
     { adcode: "320000", name: "江苏省", level: "province", parentAdcode: "100000", longitude: 118.7, latitude: 32, coordinatePrecision: "administrative_centroid", coverageLevel: "national_only" },
     { adcode: "320100", name: "南京市", level: "city", parentAdcode: "320000", longitude: 118.8, latitude: 32.1, coordinatePrecision: "administrative_centroid", coverageLevel: "nanjing_deep" },
   ],
@@ -17,7 +18,10 @@ const catalog: PublicCatalog = {
     { id: "variant-c", name: "江苏本级项目", canonicalName: "江苏本级项目", summary: null, description: "项目介绍", itemNumber: "C-1", category: "传统音乐", level: "江苏省级", regionText: "江苏省", batch: "第一批", protectionUnit: "保护单位", verifiedAt: "2026-08-18", adcode: "320000", placeName: "江苏省", inheritors: [], venueIds: [] },
     { id: "variant-d", name: "中央单位项目", canonicalName: "中央单位项目", summary: null, description: "项目介绍", itemNumber: "D-1", category: "民俗", level: "国家级", regionText: "中央单位", batch: "第一批", protectionUnit: "保护单位", verifiedAt: "2026-08-18", adcode: null, placeName: null, inheritors: [], venueIds: [] },
   ],
-  venues: [{ id: "venue-a", name: "非遗馆", venueType: "museum", adcode: "320100", placeName: "南京市", address: "南京市", longitude: 118.8, latitude: 32.1, coordinatePrecision: "geocoded_address", openingNote: null, visitNote: null, lastVerifiedAt: "2026-08-18", visitUrl: null, heritageIds: ["variant-a"] }],
+  venues: [
+    { id: "venue-a", name: "非遗馆", venueType: "museum", adcode: "320100", placeName: "南京市", address: "南京市", longitude: 118.8, latitude: 32.1, coordinatePrecision: "geocoded_address", openingNote: null, visitNote: null, lastVerifiedAt: "2026-08-18", visitUrl: null, heritageIds: ["variant-a"] },
+    { id: "venue-b", name: "北京传统工艺基地", venueType: "production_base", adcode: "110000", placeName: "北京市", address: null, longitude: null, latitude: null, coordinatePrecision: "none", openingNote: null, visitNote: null, lastVerifiedAt: "2024-03-28", visitUrl: null, heritageIds: [] },
+  ],
   events: [],
 };
 
@@ -39,11 +43,27 @@ describe("CatalogModel", () => {
 
   it("keeps the national map limited to national projects", () => {
     const model = new CatalogModel(catalog);
-    expect(model.getMapSummary()).toMatchObject([{ adcode: "320000", projectCount: 1, dominantCategory: "传统技艺" }]);
+    expect(model.getMapSummary().find((place) => place.adcode === "320000")).toMatchObject({ adcode: "320000", projectCount: 1, dominantCategory: "传统技艺" });
+    expect(model.getMapSummary().find((place) => place.adcode === "110000")).toMatchObject({ adcode: "110000", projectCount: 0, dominantCategory: null });
   });
 
   it("searches places without a runtime API", () => {
     const model = new CatalogModel(catalog);
     expect(model.searchPlaces("南京")[0]).toMatchObject({ adcode: "320100", projectCount: 2 });
+  });
+
+  it("supports nationwide venue regions, filters, and related-project search", () => {
+    const model = new CatalogModel(catalog);
+    expect(model.listVenues()).toHaveLength(2);
+    expect(model.listVenueRegions()).toMatchObject([
+      { adcode: "110000", venueCount: 1 },
+      { adcode: "320000", venueCount: 1 },
+    ]);
+    expect(model.listVenueTypes()).toEqual([
+      { venueType: "museum", count: 1 },
+      { venueType: "production_base", count: 1 },
+    ]);
+    expect(model.searchVenues({ query: "云锦" })).toMatchObject([{ id: "venue-a" }]);
+    expect(model.searchVenues({ adcode: "110000", venueType: "production_base" })).toMatchObject([{ id: "venue-b" }]);
   });
 });

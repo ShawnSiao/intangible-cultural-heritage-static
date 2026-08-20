@@ -4,6 +4,7 @@ import HeritagePage from "./pages/HeritagePage";
 import HomePage from "./pages/HomePage";
 import NotFoundPage from "./pages/NotFoundPage";
 import PlacePage from "./pages/PlacePage";
+import SourcesPage from "./pages/SourcesPage";
 import UnmappedHeritagePage from "./pages/UnmappedHeritagePage";
 import VenuePage from "./pages/VenuePage";
 import VenuesPage from "./pages/VenuesPage";
@@ -31,6 +32,9 @@ export default function App() {
         </Link>
         <nav className="site-nav" aria-label="主导航">
           <Link to="/">全国非遗</Link>
+          <Link to="/#coverage-heading">地区非遗</Link>
+          <Link to="/venues">非遗地点</Link>
+          <Link to="/sources">资料依据</Link>
         </nav>
       </header>
       <main>
@@ -41,10 +45,11 @@ export default function App() {
           <Route path="/heritage/:id" element={<HeritagePage />} />
           <Route path="/venues" element={<VenuesPage />} />
           <Route path="/venues/:id" element={<VenuePage />} />
+          <Route path="/sources" element={<SourcesPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
-      <footer className="footer">本静态站只展示已收录的公开项目、行政区与体验地点，不包含采集、审核或处理记录。</footer>
+      <footer className="footer">本静态站只展示已收录的公开项目、行政区与非遗地点，不包含采集、审核或处理记录。</footer>
     </>
   );
 }

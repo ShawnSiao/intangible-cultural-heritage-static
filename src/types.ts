@@ -117,3 +117,7 @@ export type PlaceView = PlaceRecord & {
   venueCount: number;
   containsDeepCoverage: boolean;
 };
+
+export type VenueRegionSummary = PlaceRecord & {
+  venueCount: number;
+};

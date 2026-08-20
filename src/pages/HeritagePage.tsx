@@ -11,6 +11,7 @@ export default function HeritagePage() {
   const view = params.get("view") === "graph" ? "graph" : "story";
   const paragraphs = descriptionParagraphs(item.description || item.summary);
   const venues = item.venueIds.map((venueId) => model.getVenue(venueId)).filter((venue) => venue !== null);
+  const basisLabel = item.level === "国家级" ? "国家级公开名录" : item.level === "UNESCO" ? "国际名录补充资料" : item.level.includes("江苏") ? "江苏地方名录" : item.level.includes("南京") ? "南京地方名录" : "公开名录资料";
   return (
     <div className="page-shell">
       <header className="page-hero compact-hero heritage-hero">
@@ -40,11 +41,13 @@ export default function HeritagePage() {
           </div>}
         </article>
         <aside className="detail-aside" aria-label="项目资料">
+          <div className="passport-row"><span>资料依据</span><strong>{basisLabel}</strong></div>
           <div className="passport-row"><span>名录级别</span><strong>{item.level}</strong></div>
           <div className="passport-row"><span>项目编号</span><strong>{item.itemNumber ?? "待补充"}</strong></div>
           <div className="passport-row"><span>批次</span><strong>{item.batch ?? "待核验"}</strong></div>
           <div className="passport-row"><span>最近核验</span><strong>{item.verifiedAt?.slice(0, 10) ?? "待核验"}</strong></div>
           <div className="passport-row"><span>收录范围</span><strong>{item.adcode?.startsWith("3201") ? "南京多级资料" : "国家级名录"}</strong></div>
+          <Link className="passport-row" to="/sources#projects"><span>关联规则</span><strong>查看项目与地区的归类口径 →</strong></Link>
         </aside>
       </div>
     </div>
