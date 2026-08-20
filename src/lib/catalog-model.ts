@@ -5,6 +5,7 @@ import type {
   PlaceRecord,
   PlaceView,
   PublicCatalog,
+  VenueRegionSummary,
   VenueRecord,
 } from "../types";
 
@@ -107,8 +108,43 @@ export class CatalogModel {
     };
   }
 
-  listVenues(adcode: string) {
-    return this.venuesByAdcode.get(adcode) ?? [];
+  listVenues(adcode?: string) {
+    return adcode ? this.venuesByAdcode.get(adcode) ?? [] : this.catalog.venues;
+  }
+
+  listVenueTypes(adcode?: string) {
+    const venues = this.listVenues(adcode);
+    const counts = new Map<string, number>();
+    for (const venue of venues) counts.set(venue.venueType, (counts.get(venue.venueType) ?? 0) + 1);
+    return [...counts.entries()]
+      .map(([venueType, count]) => ({ venueType, count }))
+      .sort((a, b) => b.count - a.count || a.venueType.localeCompare(b.venueType));
+  }
+
+  listVenueRegions(): VenueRegionSummary[] {
+    return this.catalog.places
+      .filter((place) => place.level === "province")
+      .map((place) => ({ ...place, venueCount: this.listVenues(place.adcode).length }))
+      .filter((place) => place.venueCount > 0)
+      .sort((a, b) => b.venueCount - a.venueCount || a.adcode.localeCompare(b.adcode));
+  }
+
+  searchVenues({ adcode, query, venueType }: { adcode?: string; query?: string; venueType?: string } = {}) {
+    const normalized = query?.trim().toLocaleLowerCase("zh-CN") ?? "";
+    return [...this.listVenues(adcode)].filter((venue) => {
+      if (venueType && venue.venueType !== venueType) return false;
+      if (!normalized) return true;
+      const heritageNames = venue.heritageIds
+        .map((heritageId) => this.getHeritage(heritageId)?.name ?? "")
+        .join("\n");
+      const haystack = `${venue.name}\n${venue.address ?? ""}\n${venue.placeName}\n${heritageNames}`.toLocaleLowerCase("zh-CN");
+      return haystack.includes(normalized);
+    }).sort((a, b) => {
+      const locationRank = (venue: VenueRecord) => venue.longitude != null && venue.latitude != null ? 0 : venue.address ? 1 : 2;
+      return locationRank(a) - locationRank(b)
+        || String(b.lastVerifiedAt ?? "").localeCompare(String(a.lastVerifiedAt ?? ""))
+        || a.name.localeCompare(b.name, "zh-CN");
+    });
   }
 
   getPlace(adcode: string): PlaceView | null {

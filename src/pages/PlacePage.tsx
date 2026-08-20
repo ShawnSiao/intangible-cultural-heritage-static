@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import AmapSurface from "../components/AmapSurface";
 import { useCatalog } from "../lib/catalog-context";
-import { placeLevelLabel } from "../lib/presentation";
+import { formatDate, placeLevelLabel, venueTypeLabel } from "../lib/presentation";
 import type { HeritageRecord } from "../types";
 
 const categories = ["民间文学", "传统音乐", "传统舞蹈", "传统戏剧", "曲艺", "传统体育、游艺与杂技", "传统美术", "传统技艺", "传统医药", "民俗"];
@@ -38,6 +38,7 @@ export default function PlacePage() {
   const coordinate = place.longitude != null && place.latitude != null
     ? [place.longitude, place.latitude] as [number, number]
     : null;
+  const placeVenues = model.searchVenues({ adcode }).slice(0, 4);
 
   return (
     <div className="page-shell">
@@ -45,13 +46,14 @@ export default function PlacePage() {
         <div className="breadcrumb"><Link to="/">全国非遗</Link><span>/</span>{place.parent && <><Link to={place.parent.adcode === "100000" ? "/" : `/places/${place.parent.adcode}`}>{place.parent.name === "中华人民共和国" ? "全国" : place.parent.name}</Link><span>/</span></>}<span>{place.name}</span></div>
         <h1 className="page-title">{place.name}非遗</h1>
         <div className={`coverage-banner ${deep || mixedCoverage ? "deep" : ""}`}>
-          <strong>{deep ? "南京多级非遗资料" : mixedCoverage ? "国家级名录为主，南京资料更完整" : "当前收录国家级名录"}</strong>
-          <span>{deep ? deepCoverageDescription : mixedCoverage ? "南京补充省级、市级项目、代表性传承人与体验地点；江苏其他地区以国家级项目为主" : "地方各级名录、传承人与体验地点正在逐步补充"}</span>
+          <strong>{deep ? "南京多级非遗资料" : mixedCoverage ? "国家级名录与全国基地，南京资料更完整" : "当前收录国家级项目与传承人"}</strong>
+          <span>{deep ? deepCoverageDescription : mixedCoverage ? "全省可查看国家级项目、传承人与生产性保护基地；南京另补充省级、市级资料" : place.venueCount > 0 ? "已核验的生产性保护基地显示在本地区；地方各级名录正在逐步补充" : "只标注到上级行政区的基地不会推测性下放；地方级资料正在逐步补充"}</span>
         </div>
       </header>
       <nav className="page-jumps" aria-label="本页内容">
         <Link to={`/places/${adcode}#region-map`}>地区地图</Link>
         <Link to={`/places/${adcode}#projects`}>非遗项目</Link>
+        {placeVenues.length > 0 && <Link to={`/places/${adcode}#venues`}>非遗地点</Link>}
         {place.children.length > 0 && <Link to={`/places/${adcode}#region-list`}>地区列表</Link>}
         <Link to={`/places/${adcode}#categories`}>门类概览</Link>
       </nav>
@@ -74,13 +76,18 @@ export default function PlacePage() {
           <div><strong>{place.projectCount}</strong><span>非遗项目</span></div>
           <div><strong>{place.categoryCount}</strong><span>非遗分类</span></div>
           <div><strong>{place.inheritorCount}</strong><span>代表性传承人</span></div>
-          <div><strong>{place.venueCount}</strong><span>体验地点</span></div>
+          <Link to={`/venues?adcode=${adcode}`}><strong>{place.venueCount}</strong><span>非遗地点</span></Link>
         </div>
         <div className="overview-content">
           <div><h3>主要非遗门类</h3><div className="overview-categories">{place.categories.slice(0, 6).map((entry) => <Link to={`/places/${adcode}?category=${encodeURIComponent(entry.category)}#projects`} key={entry.category}><span>{entry.category}</span><strong>{entry.count}</strong></Link>)}</div></div>
           <div><h3>代表性非遗项目</h3><div className="overview-projects">{place.representativeProjects.length ? place.representativeProjects.map((project) => <Link to={`/heritage/${project.id}`} key={project.id}><span>{project.name}</span><small>{project.level}</small></Link>) : <p>当前暂无可展示项目名称。</p>}</div></div>
         </div>
       </section>
+      {placeVenues.length > 0 && <section className="section compact-section region-venues" id="venues" aria-labelledby="region-venues-heading">
+        <div className="section-heading compact"><h2 id="region-venues-heading">{place.name}非遗地点</h2><p>展示场馆、基地、工坊与传习空间。没有可靠地址或开放安排的地点会明确标注。</p></div>
+        <div className="venue-grid compact-venue-grid">{placeVenues.map((venue) => <Link className="venue-card" to={`/venues/${venue.id}`} key={venue.id}><div className="venue-card-top"><span className="chip">{venueTypeLabel(venue.venueType)}</span><span>{formatDate(venue.lastVerifiedAt)}</span></div><h3>{venue.name}</h3><p>{venue.address ?? "当前目录暂未提供可核验地址"}</p><footer><span>{venue.placeName}</span><span>查看详情 →</span></footer></Link>)}</div>
+        <Link className="secondary-button region-venue-link" to={`/venues?adcode=${adcode}`}>查看{place.name}全部 {place.venueCount} 个地点</Link>
+      </section>}
       <ProjectBrowser adcode={adcode} placeName={place.name} items={model.listHeritage(adcode, directOnly ? "direct" : "descendants")} categoryCounts={projectCategories} directOnly={directOnly} projectCount={place.projectCount} scopeCount={projectScopeCount} />
       {place.children.length > 0 && <section className="section region-list-section" id="region-list" aria-labelledby="region-list-heading">
         <div className="section-heading compact"><h2 id="region-list-heading">地区列表</h2><p>优先展示已有非遗记录的地区；暂无项目记录的地区收纳在列表末尾。</p></div>
